@@ -1,6 +1,10 @@
-if (window.location.pathname.startsWith("/home")) {
+(function () {
     let enabled = true;
     let observer = null;
+
+    function isHomeTimeline() {
+        return window.location.pathname === "/home";
+    }
 
     function hideVerifiedPosts() {
         const posts = document.querySelectorAll("article");
@@ -21,6 +25,14 @@ if (window.location.pathname.startsWith("/home")) {
         });
     }
 
+    function refresh() {
+        if (enabled && isHomeTimeline()) {
+            hideVerifiedPosts();
+        } else {
+            showAllPosts();
+        }
+    }
+
     function startObserving() {
         if (observer) return;
         observer = new MutationObserver(mutations => {
@@ -28,10 +40,10 @@ if (window.location.pathname.startsWith("/home")) {
                 mutation.addedNodes.forEach(node => {
                     if (node.nodeType === 1) {
                         if (node.matches && node.matches("article")) {
-                            hideVerifiedPosts();
+                            refresh();
                         } else if (node.querySelector) {
                             const nestedArticles = node.querySelectorAll("article");
-                            if (nestedArticles.length) hideVerifiedPosts();
+                            if (nestedArticles.length) refresh();
                         }
                     }
                 });
@@ -43,32 +55,30 @@ if (window.location.pathname.startsWith("/home")) {
         });
     }
 
-    function stopObserving() {
-        if (observer) {
-            observer.disconnect();
-            observer = null;
-        }
-    }
-
-    function applyState() {
-        if (enabled) {
-            hideVerifiedPosts();
-            startObserving();
-        } else {
-            stopObserving();
-            showAllPosts();
-        }
-    }
+    // X is a single-page app: navigating between the home timeline and a
+    // profile doesn't reload the page, so pushState/replaceState (which
+    // don't fire popstate) need to be patched to detect the route change.
+    ["pushState", "replaceState"].forEach(method => {
+        const original = history[method];
+        history[method] = function (...args) {
+            const result = original.apply(this, args);
+            window.dispatchEvent(new Event("betterx:navigation"));
+            return result;
+        };
+    });
+    window.addEventListener("popstate", () => window.dispatchEvent(new Event("betterx:navigation")));
+    window.addEventListener("betterx:navigation", refresh);
 
     chrome.storage.local.get({ enabled: true }, result => {
         enabled = result.enabled;
-        applyState();
+        refresh();
+        startObserving();
     });
 
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === "local" && changes.enabled) {
             enabled = changes.enabled.newValue;
-            applyState();
+            refresh();
         }
     });
-}
+})();
