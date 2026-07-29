@@ -9,19 +9,59 @@
     padding: 12px;
     margin: 0;
   }
-  label {
+  .row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     font-size: 14px;
   }
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: #ccc;
+    border-radius: 20px;
+    transition: background-color 0.15s ease;
+  }
+  .slider::before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.15s ease;
+  }
+  input:checked + .slider {
+    background-color: #1d9bf0;
+  }
+  input:checked + .slider::before {
+    transform: translateX(16px);
+  }
 </style>
 </head>
 <body>
-  <label>
+  <div class="row">
     betterX
-    <input type="checkbox" id="toggle">
-  </label>
+    <label class="switch">
+      <input type="checkbox" id="toggle">
+      <span class="slider"></span>
+    </label>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>
