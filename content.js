@@ -2,6 +2,13 @@
     let enabled = true;
     let commentMode = "push";
     let observer = null;
+    let lastPath = null;
+
+    // Verified reply cells that are hidden and waiting to be revealed once
+    // no new replies have loaded for a while (see revealQueuedComments).
+    let pushQueue = [];
+    let settleTimer = null;
+    const SETTLE_DELAY_MS = 1200;
 
     function isHomeTimeline() {
         return window.location.pathname === "/home";
@@ -13,6 +20,13 @@
 
     function isVerified(article) {
         return !!article.querySelector('svg[aria-label="Verified account"][data-testid="icon-verified"]');
+    }
+
+    // Replies are wrapped in a virtualized-list cell; hiding/moving that
+    // wrapper (rather than just the <article> inside it) avoids leaving
+    // behind an empty-looking row.
+    function commentCell(article) {
+        return article.closest('div[data-testid="cellInnerDiv"]') || article.parentElement;
     }
 
     function hideVerifiedPosts() {
@@ -27,47 +41,84 @@
         });
     }
 
+    function resetCommentQueue() {
+        clearTimeout(settleTimer);
+        settleTimer = null;
+        pushQueue = [];
+    }
+
+    // "No more comments to load" isn't something we can observe directly,
+    // so it's approximated as: no new reply has appeared for SETTLE_DELAY_MS.
+    // Every time a new reply shows up the timer restarts; once it fires we
+    // treat the current batch as finished loading and reveal the queue.
+    function scheduleSettle() {
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(revealQueuedComments, SETTLE_DELAY_MS);
+    }
+
+    function revealQueuedComments() {
+        settleTimer = null;
+        if (!pushQueue.length) return;
+
+        const byParent = new Map();
+        pushQueue.forEach(({ article, cell }) => {
+            const parent = cell.parentElement;
+            if (!parent) return;
+            if (!byParent.has(parent)) byParent.set(parent, []);
+            byParent.get(parent).push({ article, cell });
+        });
+
+        byParent.forEach(items => {
+            items.forEach(({ article, cell }) => {
+                cell.style.display = "";
+                cell.parentElement.appendChild(cell);
+                article.dataset.betterxCommentState = "visible";
+            });
+        });
+        pushQueue = [];
+    }
+
     // On a post page the first article is the tweet being viewed, not a
     // reply, so it's excluded from both the "remove" and "push" handling.
     function applyCommentMode() {
         const comments = Array.from(document.querySelectorAll("article")).slice(1);
-        comments.forEach(comment => {
-            comment.style.display = "";
-        });
 
         if (commentMode === "remove") {
+            resetCommentQueue();
             comments.forEach(comment => {
-                if (isVerified(comment)) {
-                    comment.style.display = "none";
-                }
+                delete comment.dataset.betterxCommentState;
+                commentCell(comment).style.display = isVerified(comment) ? "none" : "";
             });
             return;
         }
 
-        // "push" mode: leave verified comments visible, but move them after
-        // every unverified comment within their shared container.
-        const verifiedByParent = new Map();
+        // "push" mode: hide verified replies as they load, then reveal them
+        // (moved after every unverified reply already loaded) once loading
+        // has settled, instead of shuffling them the instant they appear.
+        let queuedNew = false;
         comments.forEach(comment => {
-            if (!isVerified(comment)) return;
-            const cell = comment.closest('div[data-testid="cellInnerDiv"]') || comment.parentElement;
-            const parent = cell && cell.parentElement;
-            if (!parent) return;
-            if (!verifiedByParent.has(parent)) verifiedByParent.set(parent, []);
-            verifiedByParent.get(parent).push(cell);
+            if (comment.dataset.betterxCommentState) return;
+            if (!isVerified(comment)) {
+                comment.dataset.betterxCommentState = "visible";
+                return;
+            }
+            const cell = commentCell(comment);
+            cell.style.display = "none";
+            comment.dataset.betterxCommentState = "queued";
+            pushQueue.push({ article: comment, cell });
+            queuedNew = true;
         });
 
-        verifiedByParent.forEach((cells, parent) => {
-            // Skip parents where the verified cells are already trailing in
-            // the right order, otherwise re-appending them every mutation
-            // would itself trigger the observer in an endless loop.
-            const tail = Array.from(parent.children).slice(-cells.length);
-            const alreadyInPlace = cells.every((cell, i) => tail[i] === cell);
-            if (alreadyInPlace) return;
-            cells.forEach(cell => parent.appendChild(cell));
-        });
+        if (queuedNew) scheduleSettle();
     }
 
     function refresh() {
+        const path = window.location.pathname;
+        if (path !== lastPath) {
+            resetCommentQueue();
+            lastPath = path;
+        }
+
         if (isHomeTimeline()) {
             if (enabled) {
                 hideVerifiedPosts();
