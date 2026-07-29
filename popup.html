@@ -5,7 +5,7 @@
 <style>
   body {
     font-family: -apple-system, sans-serif;
-    width: 180px;
+    width: 220px;
     padding: 12px;
     margin: 0;
   }
@@ -14,6 +14,9 @@
     align-items: center;
     justify-content: space-between;
     font-size: 14px;
+  }
+  .row + .row {
+    margin-top: 10px;
   }
   .switch {
     position: relative;
@@ -52,16 +55,40 @@
   input:checked + .slider::before {
     transform: translateX(16px);
   }
+  .hint {
+    color: #71767b;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+  #commentModeBtn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 0;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+  }
+  #commentModeBtn.push {
+    background-color: #1a8917;
+  }
+  #commentModeBtn.remove {
+    background-color: #c8262e;
+  }
 </style>
 </head>
 <body>
   <div class="row">
-    betterX
+    Hide on Home
     <label class="switch">
       <input type="checkbox" id="toggle">
       <span class="slider"></span>
     </label>
   </div>
+  <div class="hint">Verified comments on a post:</div>
+  <button id="commentModeBtn"></button>
   <script src="popup.js"></script>
 </body>
 </html>
