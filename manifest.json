@@ -3,6 +3,11 @@
   "name": "betterX",
   "version": "0.1",
   "description": "Hide verified accounts from the timeline.",
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "betterX"
+  },
   "content_scripts": [
     {
       "matches": ["https://x.com/home*"],
